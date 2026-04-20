@@ -1,0 +1,4 @@
+authz-server
+.bundle/
+build.log
+*.log

@@ -34,6 +34,7 @@ docker-down:
 smoke:
 	curl -sf "$(OPA_BASE_URL)/health" >/dev/null || curl -sf "$(OPA_BASE_URL)/" >/dev/null
 	curl -sf http://127.0.0.1:8080/v1/releases/current
+	curl -sf http://127.0.0.1:8080/displayground/ | head -1 | grep -q '<!DOCTYPE html>'
 	curl -sf -X POST http://127.0.0.1:8080/v1/authorize \
 	  -H 'Content-Type: application/json' \
 	  -d '{"user":{"sub":"smoke","roles":["admin"]},"request":{"action":"read","resource":{"type":"any"}}}'

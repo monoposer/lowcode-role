@@ -1,4 +1,4 @@
--- RBAC metadata + policy releases + audit
+-- RBAC metadata + DSL policies + policy releases + audit
 
 CREATE TABLE IF NOT EXISTS roles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS policies (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name            TEXT NOT NULL,
-    kind            TEXT NOT NULL CHECK (kind IN ('rego', 'lowcode')),
+    kind            TEXT NOT NULL DEFAULT 'dsl' CHECK (kind IN ('dsl')),
     body            JSONB NOT NULL DEFAULT '{}',
     compiled_rego   TEXT,
     status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
@@ -62,7 +62,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log (created_at DESC);
 
--- Seed admin role (static *:*)
 INSERT INTO roles (name, description, static_permissions)
-VALUES ('admin', 'Bootstrap administrator', ARRAY['*:*']::TEXT[])
+VALUES
+    ('admin', 'Bootstrap administrator', ARRAY['*:*']::TEXT[]),
+    ('authenticated', 'Logged-in users', ARRAY[]::TEXT[]),
+    ('anon', 'Anonymous users', ARRAY[]::TEXT[])
 ON CONFLICT (name) DO NOTHING;

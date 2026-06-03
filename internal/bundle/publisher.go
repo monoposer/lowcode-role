@@ -130,15 +130,15 @@ func (p *Publisher) buildGenerated(ctx context.Context) (string, error) {
 	defer rows.Close()
 
 	type pol struct {
-		id       string
-		kind     string
-		body     string
-		compiled *string
+		id   string
+		kind string
+		body string
 	}
 	var policies []pol
 	for rows.Next() {
 		var r pol
-		if err := rows.Scan(&r.id, &r.kind, &r.body, &r.compiled); err != nil {
+		var compiled *string
+		if err := rows.Scan(&r.id, &r.kind, &r.body, &compiled); err != nil {
 			return "", err
 		}
 		policies = append(policies, r)
@@ -146,29 +146,18 @@ func (p *Publisher) buildGenerated(ctx context.Context) (string, error) {
 
 	var blocks []string
 	for _, pol := range policies {
-		switch pol.kind {
-		case "rego":
-			body := ""
-			if pol.compiled != nil {
-				body = *pol.compiled
-			}
-			if strings.TrimSpace(body) == "" {
-				return "", fmt.Errorf("published rego policy %s has empty compiled_rego", pol.id)
-			}
-			blocks = append(blocks, fmt.Sprintf("# rego policy %s\n%s", pol.id, stripPackageAuthz(body)))
-		case "lowcode":
-			roleNames, err := p.roleNamesForPolicy(ctx, pol.id)
-			if err != nil {
-				return "", err
-			}
-			rego, err := lowcode.CompileRules(pol.id, []byte(pol.body), roleNames)
-			if err != nil {
-				return "", fmt.Errorf("policy %s: %w", pol.id, err)
-			}
-			blocks = append(blocks, fmt.Sprintf("# lowcode policy %s\n%s", pol.id, rego))
-		default:
+		if pol.kind != "dsl" {
 			return "", fmt.Errorf("unknown kind %s", pol.kind)
 		}
+		roleNames, err := p.roleNamesForPolicy(ctx, pol.id)
+		if err != nil {
+			return "", err
+		}
+		rego, err := lowcode.CompileRules(pol.id, []byte(pol.body), roleNames)
+		if err != nil {
+			return "", fmt.Errorf("policy %s: %w", pol.id, err)
+		}
+		blocks = append(blocks, fmt.Sprintf("# dsl policy %s\n%s", pol.id, rego))
 	}
 	if len(blocks) == 0 {
 		return "package authz\n\n# no published policies with role bindings\n", nil
@@ -176,13 +165,6 @@ func (p *Publisher) buildGenerated(ctx context.Context) (string, error) {
 	return "package authz\n\n" + strings.Join(blocks, "\n\n") + "\n", nil
 }
 
-func stripPackageAuthz(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "package authz")
-	return strings.TrimSpace(s)
-}
-
-// RoleNamesForPolicy returns bound role names for a policy (used by compile API).
 func (p *Publisher) RoleNamesForPolicy(ctx context.Context, policyID string) ([]string, error) {
 	return p.roleNamesForPolicy(ctx, policyID)
 }

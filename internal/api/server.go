@@ -39,6 +39,7 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(30*time.Second))
 
 	r.Handle("/metrics", promhttp.Handler())
+	s.mountDisplayGround(r)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/releases/current", s.handleCurrentRelease)
@@ -68,6 +69,8 @@ func (s *Server) Router() http.Handler {
 		r.Get("/principals/{ptype}/{pid}/roles", s.handleListPrincipalRoles)
 
 		r.Post("/authorize", s.handleAuthorize)
+
+		r.Post("/dsl/compile-preview", s.handleCompileDSLPreview)
 	})
 	return r
 }
@@ -290,11 +293,10 @@ func (s *Server) handleDeleteRole(w http.ResponseWriter, r *http.Request) {
 // --- policies ---
 
 type policyCreate struct {
-	Name          string          `json:"name"`
-	Kind          string          `json:"kind"`
-	Body          json.RawMessage `json:"body"`
-	CompiledRego  *string         `json:"compiled_rego"`
-	Status        string          `json:"status"`
+	Name   string          `json:"name"`
+	Kind   string          `json:"kind"`
+	Body   json.RawMessage `json:"body"`
+	Status string          `json:"status"`
 }
 
 func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
@@ -302,8 +304,16 @@ func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if in.Name == "" || (in.Kind != "rego" && in.Kind != "lowcode") {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and kind (rego|lowcode) required"})
+	if in.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name required"})
+		return
+	}
+	kind := in.Kind
+	if kind == "" {
+		kind = "dsl"
+	}
+	if kind != "dsl" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "kind must be dsl"})
 		return
 	}
 	if len(in.Body) == 0 {
@@ -316,10 +326,10 @@ func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var id string
 	err := s.Pool.QueryRow(ctx, `
-		INSERT INTO policies (name, kind, body, compiled_rego, status)
-		VALUES ($1,$2,$3::jsonb,$4,$5)
+		INSERT INTO policies (name, kind, body, status)
+		VALUES ($1,$2,$3::jsonb,$4)
 		RETURNING id::text
-	`, in.Name, in.Kind, in.Body, in.CompiledRego, st).Scan(&id)
+	`, in.Name, kind, in.Body, st).Scan(&id)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -499,8 +509,8 @@ func (s *Server) handleCompilePolicy(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if kind != "lowcode" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "compile only for lowcode policies"})
+	if kind != "dsl" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "compile only for dsl policies"})
 		return
 	}
 	roles, err := s.Pub.RoleNamesForPolicy(ctx, id)

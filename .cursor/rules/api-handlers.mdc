@@ -1,0 +1,32 @@
+---
+description: REST API 与 DisplayGround 约定
+globs: internal/api/**
+alwaysApply: false
+---
+
+# API 层
+
+## 路由
+
+- 前缀 `/v1`；DisplayGround 在 `/displayground/`
+- Policy 创建：`kind` 默认 `dsl`，仅接受 `dsl`
+- 编译：`POST /v1/policies/{id}/compile`、`POST /v1/dsl/compile-preview`、`GET /v1/dsl/schema`
+
+## Handler 模式
+
+```go
+if !readJSON(w, r, &in) { return }
+writeJSON(w, http.StatusOK, map[string]any{...})
+s.audit(ctx, actor(r), "action", "entity_type", id, payload)
+```
+
+## DisplayGround
+
+- 静态文件 embed 在 `internal/api/displayground/`
+- 修改 UI 时保持纯 HTML/JS，无构建步骤
+- 创建策略流程：policy → attach role → compile → published → releases
+
+## Authorize
+
+- 输入：`user` + `request`；不查 DB 解析 principal
+- 缓存 key 含 revision；`X-Role-Revision` 不匹配时跳过缓存

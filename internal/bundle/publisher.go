@@ -19,8 +19,8 @@ import (
 
 // Publish snapshots published policies + role static grants into an OPA loadable directory:
 //
-//	<out>/authz/main.rego
-//	<out>/authz/generated.rego
+//	<out>/role/main.rego
+//	<out>/role/generated.rego
 //	<out>/role_grants.json  -> data.role_grants
 type Publisher struct {
 	Pool     *pgxpool.Pool
@@ -47,7 +47,7 @@ func (p *Publisher) Publish(ctx context.Context) (revision int64, digest string,
 
 // writeBundle materializes bundle files into dir (caller ensures dir exists or is empty).
 func (p *Publisher) writeBundle(ctx context.Context, dir string) (digest string, err error) {
-	if err := os.MkdirAll(filepath.Join(dir, "authz"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "role"), 0o755); err != nil {
 		return "", err
 	}
 
@@ -78,7 +78,7 @@ func (p *Publisher) writeBundle(ctx context.Context, dir string) (digest string,
 		return "", err
 	}
 
-	mainPath := filepath.Join(dir, "authz", "main.rego")
+	mainPath := filepath.Join(dir, "role", "main.rego")
 	if err := os.WriteFile(mainPath, []byte(p.BaseRego), 0o644); err != nil {
 		return "", err
 	}
@@ -87,7 +87,7 @@ func (p *Publisher) writeBundle(ctx context.Context, dir string) (digest string,
 	if err != nil {
 		return "", err
 	}
-	genPath := filepath.Join(dir, "authz", "generated.rego")
+	genPath := filepath.Join(dir, "role", "generated.rego")
 	if err := os.WriteFile(genPath, []byte(gen), 0o644); err != nil {
 		return "", err
 	}
@@ -160,9 +160,9 @@ func (p *Publisher) buildGenerated(ctx context.Context) (string, error) {
 		blocks = append(blocks, fmt.Sprintf("# dsl policy %s\n%s", pol.id, rego))
 	}
 	if len(blocks) == 0 {
-		return "package authz\n\n# no published policies with role bindings\n", nil
+		return "package role\n\n# no published policies with role bindings\n", nil
 	}
-	return "package authz\n\n" + strings.Join(blocks, "\n\n") + "\n", nil
+	return "package role\n\n" + strings.Join(blocks, "\n\n") + "\n", nil
 }
 
 func (p *Publisher) RoleNamesForPolicy(ctx context.Context, policyID string) ([]string, error) {

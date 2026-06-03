@@ -18,7 +18,7 @@ func LoadBaseRego(path string) (string, error) {
 
 // DefaultBaseRegoPath is relative to the module root at runtime.
 func DefaultBaseRegoPath() string {
-	return filepath.Join("rego", "authz", "main.rego")
+	return filepath.Join("rego", "role", "main.rego")
 }
 
 // PublishAtomic writes to a temp directory, validates with opa check, swaps into OutDir, then records release.

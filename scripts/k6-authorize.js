@@ -10,7 +10,7 @@ export const options = {
   },
 };
 
-const url = __ENV.AUTHZ_URL || "http://127.0.0.1:8080/v1/authorize";
+const url = __ENV.ROLE_SERVER_URL || "http://127.0.0.1:8080/v1/authorize";
 const payload = JSON.stringify({
   user: { sub: "u1", roles: ["admin"] },
   request: { action: "read", resource: { type: "anything", id: "1" } },

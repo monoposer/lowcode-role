@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -71,6 +72,7 @@ func (s *Server) Router() http.Handler {
 		r.Post("/authorize", s.handleAuthorize)
 
 		r.Post("/dsl/compile-preview", s.handleCompileDSLPreview)
+		r.Get("/dsl/schema", s.handleDSLSchema)
 	})
 	return r
 }
@@ -174,7 +176,7 @@ func (s *Server) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		RETURNING id::text
 	`, in.Name, in.Description, meta, in.StaticPermissions).Scan(&id)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePgErr(w, err)
 		return
 	}
 	s.audit(ctx, actor(r), "create", "role", id, in)
@@ -331,7 +333,7 @@ func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
 		RETURNING id::text
 	`, in.Name, kind, in.Body, st).Scan(&id)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePgErr(w, err)
 		return
 	}
 	s.audit(ctx, actor(r), "create", "policy", id, in)
@@ -549,10 +551,10 @@ func opaCheckFragment(ctx context.Context, opaBin, rego string) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	if err := os.MkdirAll(filepath.Join(dir, "authz"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "role"), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "authz", "fragment.rego"), []byte(rego), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "role", "fragment.rego"), []byte(rego), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "role_grants.json"), []byte("{}"), 0o644); err != nil {
@@ -561,7 +563,10 @@ func opaCheckFragment(ctx context.Context, opaBin, rego string) error {
 	cmd := exec.CommandContext(ctx, opaBin, "check", dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.New(string(out))
+		if len(out) > 0 {
+			return fmt.Errorf("opa check failed: %s", string(out))
+		}
+		return fmt.Errorf("opa check failed: %w (install opa CLI or set OPA_EXECUTABLE)", err)
 	}
 	return nil
 }
@@ -662,7 +667,7 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 	input := map[string]any{"user": u, "request": req}
 
-	hdrRev := r.Header.Get("X-Authz-Revision")
+	hdrRev := r.Header.Get("X-Role-Revision")
 	var clientRev int64 = -1
 	if hdrRev != "" {
 		if v, err := strconv.ParseInt(hdrRev, 10, 64); err == nil {
@@ -676,8 +681,8 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if useCache {
 		if ok, hit, err := s.Cache.Get(rev, input); err == nil && hit {
 			metricsx.CacheHits.Inc()
-			metricsx.AuthzLatency.WithLabelValues("hit").Observe(time.Since(start).Seconds())
-			metricsx.AuthzRequests.WithLabelValues(boolLabel(ok)).Inc()
+			metricsx.RoleLatency.WithLabelValues("hit").Observe(time.Since(start).Seconds())
+			metricsx.RoleRequests.WithLabelValues(boolLabel(ok)).Inc()
 			writeJSON(w, http.StatusOK, map[string]any{"allow": ok, "cache": "hit", "revision": rev})
 			return
 		}
@@ -687,8 +692,8 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	allow, d, err := s.OPA.EvalAllow(ctx, input)
 	if err != nil {
-		metricsx.AuthzLatency.WithLabelValues("miss").Observe(time.Since(start).Seconds())
-		metricsx.AuthzRequests.WithLabelValues("error").Inc()
+		metricsx.RoleLatency.WithLabelValues("miss").Observe(time.Since(start).Seconds())
+		metricsx.RoleRequests.WithLabelValues("error").Inc()
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
@@ -696,8 +701,8 @@ func (s *Server) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	if useCache {
 		_ = s.Cache.Set(rev, input, allow)
 	}
-	metricsx.AuthzLatency.WithLabelValues("miss").Observe(time.Since(start).Seconds())
-	metricsx.AuthzRequests.WithLabelValues(boolLabel(allow)).Inc()
+	metricsx.RoleLatency.WithLabelValues("miss").Observe(time.Since(start).Seconds())
+	metricsx.RoleRequests.WithLabelValues(boolLabel(allow)).Inc()
 	writeJSON(w, http.StatusOK, map[string]any{"allow": allow, "cache": "miss", "revision": rev})
 }
 

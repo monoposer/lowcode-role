@@ -1,0 +1,26 @@
+---
+description: DSL v1 编译器约定
+globs: internal/lowcode/**
+alwaysApply: false
+---
+
+# DSL 编译器
+
+## 类型
+
+- `Document`：`version`, `resource`, `operations`, `fields`
+- `OperationRule`：select/delete 用 `when`；insert 用 `check`；update 两者皆可
+- `Condition.op`：`eq` | `neq` | `in`
+
+## 编译输出
+
+- 生成 `package role` 下的 `allow` 规则与 `dsl_{id}_match_{op}` 辅助规则
+- 列级 ACL 用 `dsl_{id}_field_{op}` set + `fields_{op}_ok` / `_denied`
+- 避免 OPA `every` 关键字；用 `some f in ...` + `not denied` 模式
+
+## 修改 checklist
+
+1. 更新 `document.go` + `compiler.go`
+2. 添加/更新 `compiler_test.go`
+3. 确认 `publisher.buildGenerated` 仍调用 `lowcode.CompileRules`
+4. 更新 README DSL 示例

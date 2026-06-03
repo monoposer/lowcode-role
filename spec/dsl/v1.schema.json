@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/postship/lowcode-role/spec/dsl/v1.schema.json",
+  "title": "lowcode-role Policy DSL",
+  "description": "Unified policy DSL (v1). Configured via POST /v1/policies (kind=dsl), compiled to OPA Rego (package role). Evaluated at POST /v1/authorize.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "resource", "operations"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "DSL version. Only 1 is supported."
+    },
+    "resource": {
+      "$ref": "#/$defs/resource"
+    },
+    "operations": {
+      "$ref": "#/$defs/operations"
+    },
+    "fields": {
+      "$ref": "#/$defs/fields"
+    }
+  },
+  "$defs": {
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table"],
+      "description": "Target resource (typically a database table when type=db).",
+      "properties": {
+        "type": {
+          "type": "string",
+          "default": "db",
+          "description": "Resource kind. Default \"db\" matches input.request.resource.type/schema/table. Any other value matches input.request.resource.type only."
+        },
+        "schema": {
+          "type": "string",
+          "default": "public",
+          "description": "Database schema. Used when type=db. Default \"public\"."
+        },
+        "table": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Table name (when type=db) or resource type identifier."
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "CRUD operation rules. At least one of select|insert|update|delete is required.",
+      "properties": {
+        "select": {
+          "$ref": "#/$defs/operationRuleWhenOnly",
+          "description": "Row filter for read (Supabase USING)."
+        },
+        "insert": {
+          "$ref": "#/$defs/operationRuleCheckOnly",
+          "description": "Write validation for insert (Supabase WITH CHECK)."
+        },
+        "update": {
+          "$ref": "#/$defs/operationRuleWhenAndCheck",
+          "description": "Row filter (when) + post-update validation (check)."
+        },
+        "delete": {
+          "$ref": "#/$defs/operationRuleWhenOnly",
+          "description": "Row filter for delete (Supabase USING)."
+        }
+      }
+    },
+    "operationRuleWhenOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "$ref": "#/$defs/conditions"
+        }
+      }
+    },
+    "operationRuleCheckOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "$ref": "#/$defs/conditions"
+        }
+      }
+    },
+    "operationRuleWhenAndCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "$ref": "#/$defs/conditions"
+        },
+        "check": {
+          "$ref": "#/$defs/conditions"
+        }
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "description": "Predicates combined with AND. Compiled to Rego expressions.",
+      "items": {
+        "$ref": "#/$defs/condition"
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "op", "right"],
+      "properties": {
+        "left": {
+          "type": "string",
+          "description": "Rego reference, e.g. input.request.resource.row.user_id",
+          "examples": [
+            "input.request.resource.row.user_id",
+            "input.request.resource.row.status"
+          ]
+        },
+        "op": {
+          "type": "string",
+          "enum": ["eq", "neq", "in"],
+          "description": "Comparison operator."
+        },
+        "right": {
+          "description": "Rego reference (input.* / data.*) or literal value (string, number, boolean, array).",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" },
+            { "type": "boolean" },
+            { "type": "null" },
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "type": "string" },
+                  { "type": "number" },
+                  { "type": "boolean" }
+                ]
+              }
+            }
+          ],
+          "examples": [
+            "input.user.sub",
+            "active",
+            ["draft", "pending"]
+          ]
+        }
+      }
+    },
+    "fields": {
+      "type": "object",
+      "description": "Optional column-level ACL. Keys are column names.",
+      "additionalProperties": {
+        "$ref": "#/$defs/fieldACL"
+      }
+    },
+    "fieldACL": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-column permissions. Omitted ops are not checked at column level.",
+      "properties": {
+        "select": {
+          "type": "boolean",
+          "description": "Allow reading this column on select."
+        },
+        "insert": {
+          "type": "boolean",
+          "description": "Allow writing this column on insert."
+        },
+        "update": {
+          "type": "boolean",
+          "description": "Allow writing this column on update."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": 1,
+      "resource": {
+        "type": "db",
+        "schema": "public",
+        "table": "orders"
+      },
+      "operations": {
+        "select": {
+          "when": [
+            {
+              "left": "input.request.resource.row.user_id",
+              "op": "eq",
+              "right": "input.user.sub"
+            }
+          ]
+        },
+        "insert": {
+          "check": [
+            {
+              "left": "input.request.resource.row.user_id",
+              "op": "eq",
+              "right": "input.user.sub"
+            }
+          ]
+        }
+      },
+      "fields": {
+        "amount": { "select": true, "insert": false, "update": false },
+        "user_id": { "select": true, "insert": true, "update": false },
+        "status": { "select": true, "insert": true, "update": true }
+      }
+    }
+  ]
+}

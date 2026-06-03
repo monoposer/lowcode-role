@@ -1,8 +1,8 @@
 SHELL := /bin/bash
-export DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/authz?sslmode=disable
+export DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/lowcode_role?sslmode=disable
 export OPA_BASE_URL ?= http://127.0.0.1:8181
 export BUNDLE_OUT_DIR ?= $(CURDIR)/.bundle/out
-export BASE_REGO_PATH ?= $(CURDIR)/rego/authz/main.rego
+export BASE_REGO_PATH ?= $(CURDIR)/rego/role/main.rego
 
 .PHONY: tidy build test run bundle-init docker-up docker-down smoke k6
 
@@ -10,18 +10,18 @@ tidy:
 	go mod tidy
 
 build:
-	go build -o ./authz-server ./cmd/server
+	go build -o ./role-server ./cmd/server
 
 test:
 	go test ./...
 
 run: build
-	DATABASE_URL=$(DATABASE_URL) OPA_BASE_URL=$(OPA_BASE_URL) BUNDLE_OUT_DIR=$(BUNDLE_OUT_DIR) BASE_REGO_PATH=$(BASE_REGO_PATH) ./authz-server
+	DATABASE_URL=$(DATABASE_URL) OPA_BASE_URL=$(OPA_BASE_URL) BUNDLE_OUT_DIR=$(BUNDLE_OUT_DIR) BASE_REGO_PATH=$(BASE_REGO_PATH) ./role-server
 
 bundle-init:
-	mkdir -p "$(BUNDLE_OUT_DIR)/authz"
-	cp "$(BASE_REGO_PATH)" "$(BUNDLE_OUT_DIR)/authz/main.rego"
-	printf '%s\n' 'package authz' '' '# placeholder until first publish' > "$(BUNDLE_OUT_DIR)/authz/generated.rego"
+	mkdir -p "$(BUNDLE_OUT_DIR)/role"
+	cp "$(BASE_REGO_PATH)" "$(BUNDLE_OUT_DIR)/role/main.rego"
+	printf '%s\n' 'package role' '' '# placeholder until first publish' > "$(BUNDLE_OUT_DIR)/role/generated.rego"
 	printf '%s\n' '{}' > "$(BUNDLE_OUT_DIR)/role_grants.json"
 
 docker-up: bundle-init

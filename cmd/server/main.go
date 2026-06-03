@@ -52,9 +52,13 @@ func main() {
 		OPABin:   cfg.OPAExecutable,
 	}
 
+	if cfg.OPAExecutable == "" {
+		log.Printf("warn: OPA CLI not found — compile/publish skip local `opa check` (runtime OPA sidecar still used for authorize)")
+	}
+
 	// Initial publish so OPA sidecar has data before first admin release.
 	if _, _, err := pub.PublishAtomic(ctx); err != nil {
-		log.Printf("warn: initial publish failed (opa missing or policies invalid): %v", err)
+		log.Printf("warn: initial publish failed: %v", err)
 	}
 
 	revHolder := &revision.Holder{}

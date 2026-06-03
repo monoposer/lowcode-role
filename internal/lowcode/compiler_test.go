@@ -36,7 +36,7 @@ func TestCompileModule_OwnerSelect(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"package authz",
+		"package role",
 		`input.request.resource.table == "orders"`,
 		`input.user.roles[_] == "authenticated"`,
 		`dsl_abc_123_field_select["amount"]`,

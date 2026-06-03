@@ -20,7 +20,7 @@ func CompileModule(policyID string, docJSON []byte, roleNames []string) (string,
 	if err != nil {
 		return "", err
 	}
-	return "package authz\n\n" + body, nil
+	return "package role\n\n" + body, nil
 }
 
 func CompileRules(policyID string, docJSON []byte, roleNames []string) (string, error) {

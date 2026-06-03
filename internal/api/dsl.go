@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/postship/lowcode-role/internal/lowcode"
+	"github.com/postship/lowcode-role/spec"
 )
 
 func (s *Server) handleCompileDSLPreview(w http.ResponseWriter, r *http.Request) {
@@ -43,4 +44,9 @@ func (s *Server) handleCompileDSLPreview(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"compiled_rego": rego})
+}
+
+func (s *Server) handleDSLSchema(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/schema+json")
+	writeJSON(w, http.StatusOK, json.RawMessage(spec.DSLV1JSON))
 }

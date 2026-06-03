@@ -2,7 +2,7 @@ package revision
 
 import "sync/atomic"
 
-// Holder tracks the latest published authz revision for cache invalidation.
+// Holder tracks the latest published policy revision for cache invalidation.
 type Holder struct {
 	v atomic.Int64
 }

@@ -33,7 +33,7 @@ type evalRequest struct {
 	Input json.RawMessage `json:"input"`
 }
 
-// EvalAllow calls OPA data.authz.allow with the given input document.
+// EvalAllow calls OPA data.role.allow with the given input document.
 func (c *Client) EvalAllow(ctx context.Context, input any) (bool, time.Duration, error) {
 	raw, err := json.Marshal(input)
 	if err != nil {
@@ -44,7 +44,7 @@ func (c *Client) EvalAllow(ctx context.Context, input any) (bool, time.Duration,
 		return false, 0, err
 	}
 	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/v1/data/authz/allow", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/v1/data/role/allow", bytes.NewReader(payload))
 	if err != nil {
 		return false, 0, err
 	}

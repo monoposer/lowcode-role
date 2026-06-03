@@ -1,4 +1,4 @@
-authz-server
+role-server
 .bundle/
 build.log
 *.log

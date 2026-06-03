@@ -1,4 +1,4 @@
-package authz
+package role
 
 # input.user.sub, input.user.roles (array)
 # input.request.action, input.request.resource.type (+ optional id, owner_id, attrs)

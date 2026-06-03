@@ -1,0 +1,27 @@
+---
+description: lowcode-role 架构与核心约束
+alwaysApply: true
+---
+
+# lowcode-role 项目规则
+
+## 架构
+
+- API 配置 DSL → `internal/lowcode` 编译 Rego → `internal/bundle` 发布到 `.bundle/out` → OPA 决策
+- 静态 RBAC 在 `rego/role/main.rego` + `role_grants.json`（OPA `package role`）
+- 不生成 Postgres RLS SQL；authorize 在应用层调用
+
+## 策略
+
+- 唯一 policy kind：`dsl`，body 必须 `version: 1`
+- 禁止恢复 `rego` / `lowcode` / `rls` kind 或手写 Rego 配置入口
+
+## 发布
+
+- Draft 不生效；published + 角色绑定 + `POST /v1/releases` 才进 bundle
+- OPA 使用 `-w` 热加载，publish 后无需重启
+
+## 代码风格
+
+- 最小 diff，复用 chi/pgx 现有模式
+- DB schema 仅维护 `internal/db/migrations/schema.sql`
